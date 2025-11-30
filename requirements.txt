@@ -1,0 +1,7 @@
+pandas
+sqlalchemy
+pymysql
+matplotlib
+seaborn
+scikit-learn
+cryptography

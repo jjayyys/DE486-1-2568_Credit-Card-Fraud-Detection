@@ -1,0 +1,30 @@
+version: '3'
+services:
+  # 1. Database สำหรับเก็บข้อมูล Transaction (MySQL)
+  mysql_db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: transaction_db
+    ports:
+      - "3307:3306"  # Map ออกมาที่เครื่องเราเป็น Port 3307 (เผื่อ 3306 ชน)
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  # 2. Airflow Webserver & Scheduler (รวมกันแบบง่าย)
+  airflow:
+    build: .  # ให้สร้าง Image จาก Dockerfile ที่เราเขียนตะกี้
+    command: bash -c "airflow db init && airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com && airflow webserver & airflow scheduler"
+    restart: always
+    environment:
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False  # ไม่เอา DAG ตัวอย่าง
+    volumes:
+      - ./dags:/opt/airflow/dags   # เชื่อมโฟลเดอร์ DAGs
+      - ./data:/opt/airflow/data   # เชื่อมโฟลเดอร์ Data ให้มองเห็น CSV
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql_db
+
+volumes:
+  mysql_data:
