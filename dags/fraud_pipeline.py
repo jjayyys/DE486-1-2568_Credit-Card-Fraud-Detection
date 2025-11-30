@@ -115,33 +115,63 @@ def transform_in_db():
     print("✅ Transformation Completed.")
 
 def visualize_data():
-    """Step 3: Visualization"""
-    print("🚀 Starting Step 3: Visualization")
+    """
+    Step 3: Advanced Visualization for Data Verification
+    สร้าง Dashboard ตรวจสอบข้อมูลแบบละเอียด (4 กราฟ)
+    """
+    print("🚀 Starting Step 3: Advanced Visualization")
     engine = sqlalchemy.create_engine(DB_CONNECTION_STR)
 
+    # 1. Fetch Data
     with engine.connect() as conn:
         raw_count = conn.execute(text("SELECT COUNT(*) FROM raw_transactions")).scalar()
         processed_count = conn.execute(text("SELECT COUNT(*) FROM transactions_processed")).scalar()
 
-    df_clean = pd.read_sql("SELECT hour, Class FROM transactions_processed", engine)
+    # ดึงข้อมูลมาวิเคราะห์
+    df = pd.read_sql("SELECT * FROM transactions_processed", engine)
+    
+    # [FIX] แปลง Class เป็น String เพื่อให้ Seaborn จัดการสีได้ง่ายและถูกต้อง
+    df['Class'] = df['Class'].astype(str)
 
-    fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+    # 2. Setup Dashboard (2x2 Grid)
+    fig, axes = plt.subplots(2, 2, figsize=(18, 12))
+    fig.suptitle('Data Pipeline Verification Dashboard', fontsize=16)
 
-    axes[0].bar(['Raw Data', 'Cleaned Data'], [raw_count, processed_count], color=['gray', 'green'])
-    axes[0].set_title(f'Data Count Comparison\n(Lost {raw_count - processed_count} duplicates)')
-    axes[0].set_ylabel('Number of Rows')
+    # --- Plot 1: Data Integrity Check (Row Counts) ---
+    axes[0, 0].bar(['Raw', 'Cleaned'], [raw_count, processed_count], color=['gray', '#2ecc71'])
+    diff = raw_count - processed_count
+    axes[0, 0].set_title(f'Data Volume Integrity\n(Removed {diff} duplicates)', fontsize=12)
+    axes[0, 0].text(0, raw_count, f'{raw_count}', ha='center', va='bottom')
+    axes[0, 0].text(1, processed_count, f'{processed_count}', ha='center', va='bottom')
 
-    fraud_data = df_clean[df_clean['Class'] == 1]
+    # --- Plot 2: Business Logic Verification (Fraud Time Pattern) ---
+    fraud_data = df[df['Class'] == '1'] # ใช้ String '1'
     if not fraud_data.empty:
-        sns.histplot(data=fraud_data, x='hour', bins=24, color='red', kde=True, ax=axes[1])
-        axes[1].set_title('Fraud Transactions by Hour (Cleaned Data)')
-        axes[1].set_xlabel('Hour of Day')
+        sns.histplot(data=fraud_data, x='hour', bins=24, color='#e74c3c', kde=True, ax=axes[0, 1])
+        axes[0, 1].set_title('Verification: Fraud Pattern by Hour\n(Expect peak at late night)', fontsize=12)
     else:
-        axes[1].text(0.5, 0.5, 'No Fraud Data Found', ha='center')
+        axes[0, 1].text(0.5, 0.5, 'No Fraud Data (Check Pipeline!)', ha='center', color='red')
 
-    plt.tight_layout()
+    # --- Plot 3: Feature Engineering Verification (Amount Distribution) ---
+    # [FIX] ใช้ hue='Class' และกำหนด palette เป็น String Key
+    sns.boxplot(x='Class', y='Amount_Scaled', hue='Class', data=df, ax=axes[1, 0], 
+                palette={'0': "#3498db", '1': "#e74c3c"}, legend=False)
+    axes[1, 0].set_title('Verification: Amount Distribution (Scaled)\n(Fraud vs Normal)', fontsize=12)
+    axes[1, 0].set_ylim(-2, 10) 
+
+    # --- Plot 4: Target Class Distribution ---
+    class_counts = df['Class'].value_counts()
+    # ตรวจสอบว่ามีทั้ง 0 และ 1 หรือไม่ เพื่อกำหนดสีให้ถูกลำดับ
+    colors = ['#3498db', '#e74c3c'] if '0' in class_counts and '1' in class_counts else None
+    
+    axes[1, 1].pie(class_counts, labels=class_counts.index, autopct='%1.1f%%', colors=colors, explode=[0.1]*len(class_counts))
+    axes[1, 1].set_title(f'Verification: Class Imbalance', fontsize=12)
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95]) 
+    
+    # Save
     plt.savefig(VIZ_FILE)
-    print(f"✅ Visualization saved at: {VIZ_FILE}")
+    print(f"✅ Advanced Verification Dashboard saved at: {VIZ_FILE}")
 
 # --- 3. DAG Definition ---
 
